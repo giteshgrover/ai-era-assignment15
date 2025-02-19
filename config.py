@@ -10,7 +10,7 @@ class Config:
     nn_embed: int = 768 # embedding dimension or hidden_size
     max_sequence_len: int = 2048 # max token sequence length (for pos embedding) # Block size
     ffn_intermediate_size: int = 1536 # intermediate size for the FFN layer
-    latent_compression_ratio: int = 4 # Compression ratio for the latent dimension
+    latent_compression_ratio: int = 4 # Compression ratio for the multi head latent attention layer
     num_experts: int = 12 # number of experts
     num_shared_experts: int = 1 # number of shared experts
     experts_top_k: int = 2 # top k for the model

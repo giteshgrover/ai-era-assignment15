@@ -4,6 +4,7 @@ import math
 from typing import Optional
 import torch.nn.functional as F
 
+# TODO: Check if the implementation is correct as it was updated by me to correct the shape of the sin and cos and the cache to match the shape of the q_k (Cursor was not able to correct it). 
 class LlamaRotaryEmbedding(nn.Module):
     def __init__(self, dim, max_position_embeddings=2048, base=10000):
         # Initializes the rotary embeddings with the given dimension and maximum sequence length. 
@@ -27,11 +28,13 @@ class LlamaRotaryEmbedding(nn.Module):
         # Calculate position embeddings
         t = torch.arange(seq_len, dtype=torch.float, device=self.inv_freq.device)
         freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-        
         # Cache the embeddings
-        emb = torch.cat((freqs, freqs), dim=-1)
-        self.register_buffer("cos_cached", emb.cos()[None, None, :, :], persistent=False)
-        self.register_buffer("sin_cached", emb.sin()[None, None, :, :], persistent=False)
+        # emb = torch.cat((freqs, freqs), dim=-1)
+        emb = freqs
+        # self.register_buffer("cos_cached", emb.cos()[None, None, :, :], persistent=False)
+        # self.register_buffer("sin_cached", emb.sin()[None, None, :, :], persistent=False)
+        self.register_buffer("cos_cached", emb.cos(), persistent=False)
+        self.register_buffer("sin_cached", emb.sin(), persistent=False)
 
     def apply_rotary_emb(self, q_k, seq_len=None):
         """
@@ -41,22 +44,34 @@ class LlamaRotaryEmbedding(nn.Module):
         - Reshapes q and k to match the cache dimensions
         - Applies the rotation using complex multiplication
         - Returns the rotated query and key tensors
+
         """
         if seq_len > self.max_seq_len_cached:
             self._set_cos_sin_cache(seq_len)
 
-        print(f"self.cos_cached.shape: {self.cos_cached.shape}, self.sin_cached.shape: {self.sin_cached.shape}")
         # Get cached values for the sequence length
-        cos = self.cos_cached[:, :, :seq_len, :].to(q_k.device)
-        sin = self.sin_cached[:, :, :seq_len, :].to(q_k.device)
-        print(f"cos.shape: {cos.shape}, sin.shape: {sin.shape}")
+        cos = self.cos_cached[:seq_len, :].to(q_k.device)  # (seq_len, head_dim//4)
+        sin = self.sin_cached[:seq_len, :].to(q_k.device)   # (seq_len, head_dim//4)
 
+        # Reshape sin and cos for broadcasting
+        sin = sin.view(1, sin.shape[0], 1, sin.shape[1])  # (1, seq_len, 1, head_dim//4)
+        cos = cos.view(1, cos.shape[0], 1, cos.shape[1])  # (1, seq_len, 1, head_dim//4)
+
+        # q_k: Input tensor of shape (batch_size, seq_len, num_heads, head_dim // 2) 
+        # sin: Sine tensor of shape (1, seq_len, 1, head_dim//4)
+        # cos: Cosine tensor of shape (1, seq_len, 1, head_dim//4)
+        
         # Reshape q and k to match the cache dimensions
         q_k_embed = q_k.float()
-
         # Split channels for rotation
         q_k_rot, q_k_pass = q_k_embed[..., :q_k_embed.shape[-1] // 2], q_k_embed[..., q_k_embed.shape[-1] // 2:]
 
+
+        # sin: Sine tensor of shape (1, seq_len, 1, head_dim//4)
+        # cos: Cosine tensor of shape (1, seq_len, 1, head_dim//4)
+        # q_k_rot: (batch_size, seq_len, num_heads, head_dim//4)
+        # q_k_pass: (batch_size, seq_len, num_heads, head_dim//4)
+        
         # Apply rotation using complex multiplication
         # [cos_θx - sin_θy, sin_θx + cos_θy]
         q_k_rotated = torch.cat(
@@ -100,7 +115,7 @@ class MultiHeadLatentAttention(nn.Module):
         self.rope_q = nn.Linear(self.latent_dim, self.hidden_dim // 2)
 
         # Apply Rope to the query and key projections
-        self.rotatry_embedding = LlamaRotaryEmbedding(self.hidden_dim // 2)
+        self.rotatry_embedding = LlamaRotaryEmbedding(self.head_dim // 2)
         
         # output projection
         self.o_proj = nn.Linear(self.hidden_dim, self.hidden_dim)
@@ -130,7 +145,7 @@ class MultiHeadLatentAttention(nn.Module):
         q_rope_2 = self.rope_q(q_d) # [B, seq_len, latent_dim] -> [B, seq_len, hidden_dim // 2]
         
         # Reshape k,q,v n rope_k, rope_q to split into heads before applying Rope
-        print(f"k_proj_1.shape: {k_proj_1.shape}, q_proj_1.shape: {q_proj_1.shape}, v_proj_1.shape: {v_proj_1.shape}, k_rope_2.shape: {k_rope_2.shape}, q_rope_2.shape: {q_rope_2.shape}")
+        # print(f"k_proj_1.shape: {k_proj_1.shape}, q_proj_1.shape: {q_proj_1.shape}, v_proj_1.shape: {v_proj_1.shape}, k_rope_2.shape: {k_rope_2.shape}, q_rope_2.shape: {q_rope_2.shape}")
         k_proj_1 = k_proj_1.view(B, seq_len, self.num_heads, self.head_dim // 2) # [B, seq_len, hidden_dim // 2] -> [B, seq_len, num_heads, head_dim // 2]
         q_proj_1 = q_proj_1.view(B, seq_len, self.num_heads, self.head_dim // 2) # [B, seq_len, hidden_dim // 2] -> [B, seq_len, num_heads, head_dim // ]
         v_proj_1 = v_proj_1.view(B, seq_len, self.num_heads, self.head_dim) # [B, seq_len, hidden_dim] -> [B, seq_len, num_heads, head_dim]
@@ -138,7 +153,7 @@ class MultiHeadLatentAttention(nn.Module):
         q_rope_2 = q_rope_2.view(B, seq_len, self.num_heads, self.head_dim // 2) # [B, seq_len, hidden_dim // 2] -> [B, seq_len, num_heads, head_dim // 2]
         
         # Apply Rope to the query and key projections
-        print(f"k_rope_2.shape: {k_rope_2.shape}, q_rope_2.shape: {q_rope_2.shape}")
+        # print(f"k_rope_2.shape: {k_rope_2.shape}, q_rope_2.shape: {q_rope_2.shape}")
         k_rope_2 = self.rotatry_embedding.apply_rotary_emb(k_rope_2, seq_len)
         q_rope_2 = self.rotatry_embedding.apply_rotary_emb(q_rope_2, seq_len)
 
@@ -205,39 +220,54 @@ class DeepSeekFFN(nn.Module):
         
 
     def forward(self, x):
-       B, seq_len, embed = x.shape
+        B, seq_len, embed = x.shape
 
-       # Process through the Shared Experts
-       shared_out = sum(expert(x) for expert in self.shared_experts)
-       if self.num_shared_experts > 1:
-           shared_out = shared_out / self.num_shared_experts # Average the shared experts
+        # Process through the Shared Experts
+        shared_out = sum(expert(x) for expert in self.shared_experts)
+        if self.num_shared_experts > 1:
+            shared_out = shared_out / self.num_shared_experts
 
-       # Calculate the routing logits to decide which Routing expert to use for every token of the every batch
-       routing_logits = self.routing(x) + self.routing_bias
+        # Calculate routing logits
+        routing_logits = self.routing(x) + self.routing_bias
+        routing_probs = torch.sigmoid(routing_logits)
+        top_k_probs, top_k_indices = torch.topk(routing_probs, self.top_k, dim=-1) #top_k_probs: [B, seq_len, top_k], top_k_indices: [B, seq_len, top_k]
+        
+        # Normalize the top k probabilities
+        top_k_probs = top_k_probs / torch.sum(top_k_probs, dim=-1, keepdim=True) # [B, seq_len, top_k]
 
-       routing_probs = torch.sigmoid(routing_logits)
-       top_k_probs, top_k_indices = torch.topk(routing_probs, self.top_k, dim=-1) # top_k_probs: [B, seq_len, top_k], top_k_indices: [B, seq_len, top_k]
-   
-       # Normalize the top k probabilities
-       top_k_probs = top_k_probs / torch.sum(top_k_probs, dim=-1, keepdim=True) # [B, seq_len, top_k]
+        # Process through the top_k routed experts
+        routed_out = torch.zeros_like(x)
+        
+        # iterate over the top_k to process each one by one
+        for k in range(self.top_k):
+            # Kth expert index and probability for each token in the batch
+            expert_indices = top_k_indices[..., k]  # [B, seq_len]
+            expert_probs = top_k_probs[..., k].unsqueeze(-1)  # [B, seq_len, 1]
+            # print(f"expert_indices.shape: {expert_indices.shape}, expert_probs.shape: {expert_probs.shape}")
+            
+            # Process each expert index to see which tokens should use this expert
+            for expert_idx in range(self.num_routed_experts):
+                # Create a mask for tokens that should use this expert and apply the expert to all inputs and mask out the ones that don't use it
+                # mask = (expert_indices == expert_idx).unsqueeze(-1)  # [B, seq_len, 1]
+                # expert_output = self.routed_experts[expert_idx](x) # [B, seq_len, dim]
+                # print(f"mask.shape: {mask.shape}")
+                # print(f"expert_output.shape: {expert_output.shape}")
+                # print(f"mask : {mask}")
+                # print(f"mask*expert_output : {mask*expert_output}")
+                # routed_out += mask * expert_probs * expert_output # [B, seq_len, 1] * [B, seq_len, 1] * [B, seq_len, dim] -> [B, seq_len, dim]
+                
+                """ 
+                Note: 
+                The above code is generated by the cursor. It applies the mask after the expert is applied. As it is calculating over whole x and then masking it out by multiplying 3 matrices, it is slower
+                The below code is copied from the class notes. This one applies the mask to the input itself and then only used the masked output for the calculation. As it is only considering the masked input for the calculation and 2 matrices for multiplication, it is faster.
+                """
+                mask = (expert_indices == expert_idx)  # [B, seq_len]
+                masked_input = x[mask]  # [true_count, dim] # As mask is a 2D tensor being applied to a 3D tensor x, x[mask] yeilds a 2D tensor keeping the last dimension same as x.
+                expert_output = self.routed_experts[expert_idx](masked_input) # [true_count, dim]
+                routed_out[mask] += expert_output * expert_probs[mask] # [true_count, dim] * [true_count, 1] -> [true_count, dim]
 
-       # Process through the top_k routed experts
-       routed_out = torch.zeros_like(x)  # [B, seq_len, dim]
-       # For each expert in top_k
-       for k in range(self.top_k):
-           # Get the expert outputs for the k-th expert
-           expert_idx = top_k_indices[..., k]  # [B, seq_len]
-           expert_prob = top_k_probs[..., k].unsqueeze(-1)  # [B, seq_len, 1]
-           
-           # Gather the expert outputs based on indices
-           expert_out = torch.stack([self.routed_experts[idx.item()](x[b]) 
-                                   for b, idx in enumerate(expert_idx)]) #
-           
-           # Add weighted expert output
-           routed_out += expert_out * expert_prob # [B, seq_len, 1] * [B, seq_len, dim] -> [B, seq_len, dim]
-
-       # Return the sum of the shared and routed experts
-       return shared_out + routed_out
+        # Return the sum of the shared and routed experts
+        return shared_out + routed_out
     
     def update_bias_terms(self, expert_load):
         # Adjust the routing bias terms based on the expert load
@@ -307,6 +337,7 @@ class DeepSeekTransfomerModel(nn.Module):
         self.apply(self._init_weights)
 
     def forward(self, input_ids: torch.Tensor, mask: Optional[torch.Tensor] = None, targets: Optional[torch.Tensor] = None):
+        # TODO Should the mask be created for inference? if yes, would it be same?
         if (mask is None):
             mask = self.create_causal_mask(input_ids.shape[1], device=input_ids.device)
         # input_ids: [batch_size, seq_len] -> [batch_size, seq_len, nn_embed]
@@ -375,6 +406,7 @@ class DeepSeekTransfomerModel(nn.Module):
             # Get the current sequence length including cached tokens
             current_seq_len = seq_len + idx
 
+            # TODO is it correct? Should the mask be created for inference? if yes, would it be same?
             next_mask = self.create_causal_mask(current_seq_len, device=input_ids.device)
             
             # Create mask that includes both the current input and cached tokens
