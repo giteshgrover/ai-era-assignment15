@@ -21,13 +21,12 @@ class Config:
     tokenizer_name_or_path: str = "HuggingFaceTB/cosmo2-tokenizer"
     checkpoint_interval: int = 1000
     checkpoints_path = "checkpoints"
-    # init_method_std: 0.041666666666666664
-    nn_train_tok_seq: int = 65 # Actual training token sequence block size 64 + 1 as we are shifting the targets by 1
+    init_method_std = 0.041666666666666664
+    nn_train_tok_seq: int = 256 # 1024 # 2048 64 
     # nn_mlp_expansion: int = 4 # Expansion in the MLP layer 
-    batch_size: int = 64
-    # train_tok_size: int = 32
-    # saved_model_path = 'data/model_tf.pth'
-    # train_input_file = 'data/input.txt'
+    micro_batch_size: int = 1
+    intended_batch_size: int = 2  # 8
+    train_steps: int = 2000000
     optimizer_learning_rate_scheduler_learning_rate: float = 0.003
     optimizer_learning_rate_scheduler_lr_decay_starting_step: int = 1600000
     optimizer_learning_rate_scheduler_lr_decay_steps: int = 400000

@@ -219,7 +219,7 @@ class DeepSeekFFN(nn.Module):
         self.routing_bias = nn.Parameter(torch.zeros(self.num_routed_experts))
         
 
-    def forward(self, x):
+    def forward(self, x, update_bias=False):
         B, seq_len, embed = x.shape
 
         # Process through the Shared Experts
@@ -237,7 +237,7 @@ class DeepSeekFFN(nn.Module):
 
         # Process through the top_k routed experts
         routed_out = torch.zeros_like(x)
-        
+        expert_load = torch.zeros(self.num_routed_experts, device=x.device)
         # iterate over the top_k to process each one by one
         for k in range(self.top_k):
             # Kth expert index and probability for each token in the batch
@@ -265,6 +265,12 @@ class DeepSeekFFN(nn.Module):
                 masked_input = x[mask]  # [true_count, dim] # As mask is a 2D tensor being applied to a 3D tensor x, x[mask] yeilds a 2D tensor keeping the last dimension same as x.
                 expert_output = self.routed_experts[expert_idx](masked_input) # [true_count, dim]
                 routed_out[mask] += expert_output * expert_probs[mask] # [true_count, dim] * [true_count, 1] -> [true_count, dim]
+                
+                expert_load[expert_idx] += torch.sum(mask) # Update the expert load for the expert_idx  with the number of tokens that should use this expert for.
+
+        if update_bias:
+            expert_load = expert_load / (x.shape[0] * x.shape[1] * self.top_k) # Normalize the expert load 
+            self.update_bias_terms(expert_load)
 
         # Return the sum of the shared and routed experts
         return shared_out + routed_out
@@ -298,7 +304,7 @@ class DeepSeekBlock(nn.Module):
         # Feedforward
         self.ffn = DeepSeekFFN(config)
 
-    def forward(self, x, attention_mask=None):
+    def forward(self, x, attention_mask=None, update_mlp_bias=False):
         # x: [batch_size, seq_len, nn_embed]
         # attention_mask: [batch_size, seq_len]
 
@@ -306,7 +312,7 @@ class DeepSeekBlock(nn.Module):
         x = x + self.attn(self.attn_norm(x), attention_mask)
 
         # Feedforward
-        x = x + self.ffn(self.ffn_norm(x))
+        x = x + self.ffn(self.ffn_norm(x), update_mlp_bias)
 
         return x
 
@@ -314,7 +320,6 @@ class DeepSeekTransfomerModel(nn.Module):
     def __init__(self, config):
         super().__init__()
         self.config = config
-
 
         # embedding layer (Normal Embedding as position embedding will be part of Attention layer)
         self.embedding = nn.Embedding(config.vocab_size, config.nn_embed)
@@ -333,10 +338,11 @@ class DeepSeekTransfomerModel(nn.Module):
          # Optimization Weight sharing between lm_head and embedding
         self.head.weight = self.embedding.weight
 
+        self.std = config.init_method_std
         # initialize weights
         self.apply(self._init_weights)
 
-    def forward(self, input_ids: torch.Tensor, mask: Optional[torch.Tensor] = None, targets: Optional[torch.Tensor] = None):
+    def forward(self, input_ids: torch.Tensor, mask: Optional[torch.Tensor] = None, targets: Optional[torch.Tensor] = None, update_mlp_bias=False, use_cache: bool = False):
         # TODO Should the mask be created for inference? if yes, would it be same?
         if (mask is None):
             mask = self.create_causal_mask(input_ids.shape[1], device=input_ids.device)
@@ -345,19 +351,23 @@ class DeepSeekTransfomerModel(nn.Module):
 
         # [batch_size, seq_len, nn_embed] -> [batch_size, seq_len, nn_embed]
         for layer in self.layers:
-            x = layer(x, mask)
+            x = layer(x, mask, update_mlp_bias)
         
         # [batch_size, seq_len, nn_embed] -> [batch_size, seq_len, vocab_size]
-        x = self.head(self.norm(x))
+        logits = self.head(self.norm(x))
 
-        return x
+        if targets is not None: 
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            return logits, loss
+        else:
+            return logits
 
     # Linear layers (attention projections, FFN layers, lm_head) are initialized from N(0, 0.02)
     # Embedding layer is initialized from N(0, 0.02)
     # All RMSNorm weights are initialized to 1.0
     def _init_weights(self, module):
         if isinstance(module, nn.Linear):
-            std = 0.02 # TODO: Check if this is correct
+            std = self.std
             if hasattr(module, 'NANGPT_SCALE_INIT'):
                 std *= (2 * self.config.n_layer) ** -0.5
             torch.nn.init.normal_(module.weight, mean = 0.0, std = std)
@@ -366,7 +376,7 @@ class DeepSeekTransfomerModel(nn.Module):
         elif isinstance(module, nn.RMSNorm):
             torch.nn.init.ones_(module.weight)
         elif isinstance(module, nn.Embedding):
-            torch.nn.init.normal_(module.weight, mean=0.0, std = 0.02)
+            torch.nn.init.normal_(module.weight, mean=0.0, std = self.std) # Should it always be .02?
 
     def create_causal_mask(self, seq_len, device):
         """Creates a causal attention mask where each position can only attend to previous positions"""
@@ -392,8 +402,8 @@ class DeepSeekTransfomerModel(nn.Module):
         """
         batch_size, seq_len = input_ids.shape
         
-        # clear existing KV caching
-        self.clear_cache()
+        # clear existing KV caching TODO enable after implementing KV caching
+        # self.clear_cache()
         
         # Create a new tensor to store the generated tokens
         input_ids = torch.cat([input_ids, torch.zeros((batch_size, max_new_tokens), 

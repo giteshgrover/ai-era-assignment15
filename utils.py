@@ -24,3 +24,5 @@ def get_device(seed = 1):
         torch.mps.manual_seed(seed)
 
     return device
+    
+    
