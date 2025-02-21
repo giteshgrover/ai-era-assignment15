@@ -193,15 +193,16 @@ def train_model():
 
         if step % expert_load_update_interval == 0:
             update_mlp_bias = True
+            print(f"Updating MLP bias")
         else:
             update_mlp_bias = False
 
-        print(f"inputs: {inputs.shape}, targets: {targets.shape}, update_mlp_bias: {update_mlp_bias}")
         # Forward pass
         # Speed up - Auto Cast (Forward pass)
          # Modified autocast section to handle MPS properly
         if device.type == 'mps':
-            # MPS doesn't fully support autocast yet, run without it
+            # MPS only supports float16 (didn't see any improvement with it , disabling it)
+            #  with torch.autocast(device_type=device.type, dtype=torch.float16):
             outputs, loss = model(inputs, targets=targets, update_mlp_bias=update_mlp_bias)
         else:
             # Use autocast for CUDA and CPU
