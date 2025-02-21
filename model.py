@@ -3,86 +3,13 @@ import torch.nn as nn
 import math
 from typing import Optional
 import torch.nn.functional as F
-
-# TODO: Check if the implementation is correct as it was updated by me to correct the shape of the sin and cos and the cache to match the shape of the q_k (Cursor was not able to correct it). 
-class LlamaRotaryEmbedding(nn.Module):
-    def __init__(self, dim, max_position_embeddings=2048, base=10000):
-        # Initializes the rotary embeddings with the given dimension and maximum sequence length. 
-        # It creates inverse frequency bands and caches the position embeddings.
-        super().__init__()
-        self.dim = dim
-        self.max_position_embeddings = max_position_embeddings
-        self.base = base
-        
-        # Create inverse frequency bands
-        inv_freq = 1.0 / (base ** (torch.arange(0, dim, 2).float() / dim))
-        self.register_buffer("inv_freq", inv_freq)
-        
-        # Create position embeddings cache
-        self._set_cos_sin_cache(max_position_embeddings)
-
-    def _set_cos_sin_cache(self, seq_len):
-        # Creates and caches the sine and cosine embeddings for the given sequence length.
-        self.max_seq_len_cached = seq_len
-        
-        # Calculate position embeddings
-        t = torch.arange(seq_len, dtype=torch.float, device=self.inv_freq.device)
-        freqs = torch.einsum("i,j->ij", t, self.inv_freq)
-        # Cache the embeddings
-        # emb = torch.cat((freqs, freqs), dim=-1)
-        emb = freqs
-        # self.register_buffer("cos_cached", emb.cos()[None, None, :, :], persistent=False)
-        # self.register_buffer("sin_cached", emb.sin()[None, None, :, :], persistent=False)
-        self.register_buffer("cos_cached", emb.cos(), persistent=False)
-        self.register_buffer("sin_cached", emb.sin(), persistent=False)
-
-    def apply_rotary_emb(self, q_k, seq_len=None):
-        """
-        Applies the rotary embeddings to the query and key tensors. It:
-        - Ensures the cache is large enough for the sequence length
-        - Gets the cached sine and cosine values
-        - Reshapes q and k to match the cache dimensions
-        - Applies the rotation using complex multiplication
-        - Returns the rotated query and key tensors
-
-        """
-        if seq_len > self.max_seq_len_cached:
-            self._set_cos_sin_cache(seq_len)
-
-        # Get cached values for the sequence length
-        cos = self.cos_cached[:seq_len, :].to(q_k.device)  # (seq_len, head_dim//4)
-        sin = self.sin_cached[:seq_len, :].to(q_k.device)   # (seq_len, head_dim//4)
-
-        # Reshape sin and cos for broadcasting
-        sin = sin.view(1, sin.shape[0], 1, sin.shape[1])  # (1, seq_len, 1, head_dim//4)
-        cos = cos.view(1, cos.shape[0], 1, cos.shape[1])  # (1, seq_len, 1, head_dim//4)
-
-        # q_k: Input tensor of shape (batch_size, seq_len, num_heads, head_dim // 2) 
-        # sin: Sine tensor of shape (1, seq_len, 1, head_dim//4)
-        # cos: Cosine tensor of shape (1, seq_len, 1, head_dim//4)
-        
-        # Reshape q and k to match the cache dimensions
-        q_k_embed = q_k.float()
-        # Split channels for rotation
-        q_k_rot, q_k_pass = q_k_embed[..., :q_k_embed.shape[-1] // 2], q_k_embed[..., q_k_embed.shape[-1] // 2:]
-
-
-        # sin: Sine tensor of shape (1, seq_len, 1, head_dim//4)
-        # cos: Cosine tensor of shape (1, seq_len, 1, head_dim//4)
-        # q_k_rot: (batch_size, seq_len, num_heads, head_dim//4)
-        # q_k_pass: (batch_size, seq_len, num_heads, head_dim//4)
-        
-        # Apply rotation using complex multiplication
-        # [cos_θx - sin_θy, sin_θx + cos_θy]
-        q_k_rotated = torch.cat(
-            [
-                q_k_rot * cos - q_k_pass * sin,
-                q_k_rot * sin + q_k_pass * cos,
-            ],
-            dim=-1,
-        )
-
-        return q_k_rotated.type_as(q_k)
+from transformers.models.llama.modeling_llama import (
+    LlamaRotaryEmbedding,
+    LlamaRMSNorm,
+    LlamaConfig,
+    apply_rotary_pos_emb
+)
+from rope import CustomLlamaRotaryEmbedding, LlamaDeepseekRotaryEmbedding
 
 class MultiHeadLatentAttention(nn.Module):
     def __init__(self, config):
@@ -115,7 +42,9 @@ class MultiHeadLatentAttention(nn.Module):
         self.rope_q = nn.Linear(self.latent_dim, self.hidden_dim // 2)
 
         # Apply Rope to the query and key projections
-        self.rotatry_embedding = LlamaRotaryEmbedding(self.head_dim // 2)
+        # self.rotatry_embedding = CustomLlamaRotaryEmbedding(self.head_dim // 2)
+        self.rotatry_embedding = LlamaDeepseekRotaryEmbedding(self.head_dim // 2)
+        # self.rotatry_embedding = LlamaRotaryEmbedding(LlamaConfig(hidden_size=self.head_dim // 2)) # XXX
         
         # output projection
         self.o_proj = nn.Linear(self.hidden_dim, self.hidden_dim)
@@ -123,6 +52,7 @@ class MultiHeadLatentAttention(nn.Module):
         self.scale = 1.0 / math.sqrt(self.head_dim)
         
         # self.o_proj.NANGPT_SCALE_INIT = 1 TODO do we need weight initialization scaling?
+        self.register_buffer("rotatory_embed_cached", None, persistent=False)
 
     def forward(self, x, attention_mask=None):
         # x: [batch_size, seq_len, hidden_dim] hidden_dim = embed
@@ -154,9 +84,28 @@ class MultiHeadLatentAttention(nn.Module):
         
         # Apply Rope to the query and key projections
         # print(f"k_rope_2.shape: {k_rope_2.shape}, q_rope_2.shape: {q_rope_2.shape}")
-        k_rope_2 = self.rotatry_embedding.apply_rotary_emb(k_rope_2, seq_len)
-        q_rope_2 = self.rotatry_embedding.apply_rotary_emb(q_rope_2, seq_len)
-
+        # k_rope_2 = self.rotatry_embedding.apply_rotary_emb(k_rope_2, seq_len) # [B, seq_len, num_heads, head_dim // 2]
+        # q_rope_2 = self.rotatry_embedding.apply_rotary_emb(q_rope_2, seq_len) # [B, seq_len, num_heads, head_dim // 2]
+        # Transpose to (batch, num_heads, seq_len, head_dim//2) for rotary application.
+        # =====XXX Following is only for LlamaDeepseekRotaryEmbedding=====
+        k_rope_2 = k_rope_2.transpose(1, 2)
+        q_rope_2 = q_rope_2.transpose(1, 2)
+        if self.rotatory_embed_cached is None or self.rotatory_embed_cached.shape[2] != seq_len:
+            # print(f"Creating new rotatory_embed")
+            rotatory_embed = self.rotatry_embedding(seq_len, x.device) 
+            self.register_buffer("rotatory_embed_cached", rotatory_embed, persistent=False)
+        else:
+            # print(f"Using cached rotatory_embed")
+            rotatory_embed = self.rotatory_embed_cached
+        # print(f"rotatory_embed.shape: {rotatory_embed.shape}")
+        # print(f"q_rope_2.shape: {q_rope_2.shape}")
+        q_rope_2 = self.rotatry_embedding.apply_rotary_emb(q_rope_2, rotatory_embed) # [B, seq_len, num_heads, head_dim // 2]
+        k_rope_2 = self.rotatry_embedding.apply_rotary_emb(k_rope_2, rotatory_embed) # [B, seq_len, num_heads, head_dim // 2]
+        # Transpose back to (batch, seq_len, num_heads, head_dim//2)
+        k_rope_2 = k_rope_2.transpose(1, 2)
+        q_rope_2 = q_rope_2.transpose(1, 2)
+        # =====XXX End of LlamaDeepseekRotaryEmbedding=====
+        
         # Concatenate the first half of the k & q (i.e. k_proj_1 & q_proj_1) with the second half of the k & q (i.e. k_rope_2 & q_rope_2)
         k = torch.cat([k_proj_1, k_rope_2], dim=-1) # [B, seq_len, num_heads, head_dim // 2] + [B, seq_len, num_heads, head_dim // 2] -> [B, seq_len, num_heads, head_dim]
         q = torch.cat([q_proj_1, q_rope_2], dim=-1) # [B, seq_len, num_heads, head_dim // 2] + [B, seq_len, num_heads, head_dim // 2] -> [B, seq_len, num_heads, head_dim]

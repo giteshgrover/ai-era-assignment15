@@ -129,7 +129,9 @@ def train_model():
     # model, tokenizer = get_pretrained_tokenizer_n_model()
     model, tokenizer = get_custom_tokenizer_n_model(config)
     printModelSummary(model, config)
+    
     print(f"Device: {device}")
+    model, tokenizer = get_custom_tokenizer_n_model(config)
     model.to(device)
 
     torch.compile(model) # As per the class, torch.compile doesn't work for Windows or Mac, but it appears to be working for Mac M4Pro
@@ -145,7 +147,7 @@ def train_model():
     # Try to load checkpoint if it exists
     start_epoch = 0
     start_step = 0
-    checkpoint_path = config.checkpoints_path + '/checkpoint_final.pt'  # or specify a specific checkpoint like 'checkpoint_step_500.pt'
+    checkpoint_path = config.checkpoints_path + '/checkpoint_step_4500.pt'  # or specify a specific checkpoint like 'checkpoint_step_500.pt'
     
     if os.path.exists(checkpoint_path):
         print(f"Loading checkpoint from {checkpoint_path}")
@@ -167,11 +169,11 @@ def train_model():
     epoch = start_epoch
 
     expert_load_update_interval = config.expert_load_update_interval
-    expert_load_update_interval = 10 # TODO remove this
-    checkpoint_interval = 15 # 500 TODO
-    max_steps = 50 # 10000 TODO 
+    # expert_load_update_interval = 10 #  remove this
+    checkpoint_interval =  1000
+    max_steps =  10000  
     if start_step > 0:
-        max_steps = 55 # 10050 TODO # id already trained for maxSteps, then add 50 more as per the assignment 
+        max_steps =  10050  # id already trained for maxSteps, then add 50 more as per the assignment 
 
     if start_step >= max_steps:
         print(f"Already Trained for max steps {max_steps}. Only testing and existing")
@@ -188,8 +190,9 @@ def train_model():
         # Create targets (shifted by 1 position)
         targets = batch[:, 1:].contiguous().to(device)
         inputs = batch[:, :-1].contiguous().to(device)
-        # print(f"inputs: {inputs.shape}, targets: {targets.shape}")
-        # print(f"input.device: {inputs.device}, targets.device: {targets.device}")
+        if (step == 0):
+            print(f"inputs: {inputs.shape}, targets: {targets.shape}")
+            print(f"input.device: {inputs.device}, targets.device: {targets.device}")
 
         if step % expert_load_update_interval == 0:
             update_mlp_bias = True
@@ -208,7 +211,7 @@ def train_model():
             # Use autocast for CUDA and CPU
             with torch.autocast(device_type=device.type, dtype=torch.bfloat16):
                 outputs, loss = model(inputs, targets=targets, update_mlp_bias=update_mlp_bias)
-        print(f"outputs: {outputs.shape}, loss: {loss}")
+        # print(f"outputs: {outputs.shape}, loss: {loss}")
 
         # if steps % config.expert_load_update_interval == 0:
         #     # Update expert counts
