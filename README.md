@@ -282,64 +282,71 @@ Estimated Total Size (MB): 6124.09
 # Training Logs
 ## Training with 5000 steps (Starting from step 0)
 ```bash
-(venv) gitesh.grover@Giteshs-MacBook-Pro ai-era-assignment13 % python train.py
 Device: mps
-Resolving data files: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 104/104 [00:00<00:00, 341.22it/s]
-Resolving data files: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 104/104 [00:00<00:00, 346746.91it/s]
+Resolving data files: 100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 104/104 [00:00<00:00, 303.46it/s]
+Resolving data files: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 104/104 [00:00<00:00, 457720.48it/s]
 gradient_accumalate_steps: 8
+inputs: torch.Size([8, 64]), targets: torch.Size([8, 64])
+input.device: mps:0, targets.device: mps:0
 Updating MLP bias
-outputs: torch.Size([8, 64, 49152]), loss: 11.384061813354492
-Epoch: 0, Step: 0, Batch(micro): 0, Batch (considering grad accum): 0,  Loss: 11.3841, Time: 5.09s, Token/s: 100.68
+Epoch: 0, Step: 0, Batch(micro): 0, Batch (considering grad accum): 0,  Loss: 11.4515, Time: 6.05s, Token/s: 84.64
 Saved checkpoint at step 0
-What is Gravity?iates movie socializing Britannicalinux compliment Dol glance Pepper tears index wasted Renewablett aromaosc revenue checkout Rob utilitycriptesting BCEhoodtranslatematch nicknameLetter blurredbeck
-outputs: torch.Size([8, 64, 49152]), loss: 11.48910140991211
-Epoch: 0, Step: 1, Batch(micro): 1, Batch (considering grad accum): 0,  Loss: 11.4891, Time: 4.80s, Token/s: 106.75
-outputs: torch.Size([8, 64, 49152]), loss: 11.449575424194336
-Epoch: 0, Step: 2, Batch(micro): 2, Batch (considering grad accum): 0,  Loss: 11.4496, Time: 5.21s, Token/s: 98.35
-outputs: torch.Size([8, 64, 49152]), loss: 11.459564208984375
-Epoch: 0, Step: 3, Batch(micro): 3, Batch (considering grad accum): 0,  Loss: 11.4596, Time: 4.93s, Token/s: 103.94
-outputs: torch.Size([8, 64, 49152]), loss: 11.449928283691406
-Epoch: 0, Step: 4, Batch(micro): 4, Batch (considering grad accum): 0,  Loss: 11.4499, Time: 3.52s, Token/s: 145.28
-outputs: torch.Size([8, 64, 49152]), loss: 11.487056732177734
-Epoch: 0, Step: 5, Batch(micro): 5, Batch (considering grad accum): 0,  Loss: 11.4871, Time: 3.24s, Token/s: 158.13
-outputs: torch.Size([8, 64, 49152]), loss: 11.492469787597656
-Epoch: 0, Step: 6, Batch(micro): 6, Batch (considering grad accum): 0,  Loss: 11.4925, Time: 3.30s, Token/s: 155.35
-outputs: torch.Size([8, 64, 49152]), loss: 11.384774208068848
-Epoch: 0, Step: 7, Batch(micro): 7, Batch (considering grad accum): 0,  Loss: 11.3848, Time: 8.66s, Token/s: 59.11
-outputs: torch.Size([8, 64, 49152]), loss: 10.7886381149292
-Epoch: 0, Step: 8, Batch(micro): 8, Batch (considering grad accum): 1,  Loss: 10.7886, Time: 7.02s, Token/s: 72.96
-:
-:
-outputs: torch.Size([8, 64, 49152]), loss: 7.737437725067139
-Epoch: 0, Step: 3499, Batch(micro): 3499, Batch (considering grad accum): 437,  Loss: 7.7374, Time: 2.27s, Token/s: 225.76
+What is Gravity? '', � coated ################ positively agendasblemsmusgenericamazon sty nih EVBuilder Mandaringoalorce-----------------------------------------------clidistance FR�instonTexdishwallet dies![ouncil insol
+Epoch: 0, Step: 1, Batch(micro): 1, Batch (considering grad accum): 0,  Loss: 11.4738, Time: 4.48s, Token/s: 114.25
+Epoch: 0, Step: 2, Batch(micro): 2, Batch (considering grad accum): 0,  Loss: 11.4767, Time: 3.92s, Token/s: 130.73
+Epoch: 0, Step: 3, Batch(micro): 3, Batch (considering grad accum): 0,  Loss: 11.4856, Time: 3.91s, Token/s: 131.07
+Epoch: 0, Step: 4, Batch(micro): 4, Batch (considering grad accum): 0,  Loss: 11.4411, Time: 3.73s, Token/s: 137.23
+Epoch: 0, Step: 5, Batch(micro): 5, Batch (considering grad accum): 0,  Loss: 11.4629, Time: 3.19s, Token/s: 160.55
+Epoch: 0, Step: 6, Batch(micro): 6, Batch (considering grad accum): 0,  Loss: 11.4540, Time: 3.33s, Token/s: 153.77
+Epoch: 0, Step: 7, Batch(micro): 7, Batch (considering grad accum): 0,  Loss: 11.4693, Time: 6.70s, Token/s: 76.40
+Epoch: 0, Step: 8, Batch(micro): 8, Batch (considering grad accum): 1,  Loss: 11.4924, Time: 4.72s, Token/s: 108.54
+Epoch: 0, Step: 9, Batch(micro): 9, Batch (considering grad accum): 1,  Loss: 11.4508, Time: 4.08s, Token/s: 125.44
+Epoch: 0, Step: 10, Batch(micro): 10, Batch (considering grad accum): 1,  Loss: 11.3990, Time: 3.67s, Token/s: 139.45
+Epoch: 0, Step: 11, Batch(micro): 11, Batch (considering grad accum): 1,  Loss: 11.3143, Time: 3.08s, Token/s: 166.00
+::
+::
+Epoch: 0, Step: 999, Batch(micro): 999, Batch (considering grad accum): 124,  Loss: 8.8353, Time: 23.18s, Token/s: 22.09
 Updating MLP bias
-outputs: torch.Size([8, 64, 49152]), loss: 7.447840213775635
-Epoch: 0, Step: 3500, Batch(micro): 3500, Batch (considering grad accum): 437,  Loss: 7.4478, Time: 2.59s, Token/s: 197.81
-Saved checkpoint at step 3500
-What is Gravity?,. by! in
-, can.,.
- and,
-, of of your.,, in., in you of with.
-outputs: torch.Size([8, 64, 49152]), loss: 7.890702724456787
-
+Epoch: 0, Step: 1000, Batch(micro): 1000, Batch (considering grad accum): 125,  Loss: 8.4972, Time: 6.95s, Token/s: 73.67
+Saved checkpoint at step 1000
+What is Gravity?, the, have to, hydrocarbon, you in and and
 ::
 ::
-
-Epoch: 0, Step: 4497, Batch(micro): 4497, Batch (considering grad accum): 562,  Loss: 8.4338, Time: 2.78s, Token/s: 184.00
-outputs: torch.Size([8, 64, 49152]), loss: 7.812904357910156
-Epoch: 0, Step: 4498, Batch(micro): 4498, Batch (considering grad accum): 562,  Loss: 7.8129, Time: 2.55s, Token/s: 201.02
-outputs: torch.Size([8, 64, 49152]), loss: 7.534916877746582
-Epoch: 0, Step: 4499, Batch(micro): 4499, Batch (considering grad accum): 562,  Loss: 7.5349, Time: 2.58s, Token/s: 198.14
+Epoch: 0, Step: 1998, Batch(micro): 1998, Batch (considering grad accum): 249,  Loss: 7.0062, Time: 3.58s, Token/s: 143.19
+Epoch: 0, Step: 1999, Batch(micro): 1999, Batch (considering grad accum): 249,  Loss: 7.3228, Time: 18.42s, Token/s: 27.79
 Updating MLP bias
-outputs: torch.Size([8, 64, 49152]), loss: 7.738061428070068
-Epoch: 0, Step: 4500, Batch(micro): 4500, Batch (considering grad accum): 562,  Loss: 7.7381, Time: 2.14s, Token/s: 239.67
-Saved checkpoint at step 4500
-What is Gravity?
- it a. into that the " how. by- like a.. such
-., to ( and ( the: this
- these like
-:
+Epoch: 0, Step: 2000, Batch(micro): 2000, Batch (considering grad accum): 250,  Loss: 7.1523, Time: 5.90s, Token/s: 86.78
+Saved checkpoint at step 2000
+What is Gravity?4 us-!
+Section of the
+
+Imagine you, and on diverse. To and the world to their the the and-Conclusion for a
+Epoch: 0, Step: 2001, Batch(micro): 2001, Batch (considering grad accum): 250,  Loss: 7.7359, Time: 14.60s, Token/s: 35.08
 ::
+::
+Epoch: 0, Step: 4999, Batch(micro): 4999, Batch (considering grad accum): 624,  Loss: 6.0194, Time: 18.57s, Token/s: 27.58
+Updating MLP bias
+Epoch: 0, Step: 5000, Batch(micro): 5000, Batch (considering grad accum): 625,  Loss: 6.5473, Time: 6.59s, Token/s: 77.65
+Saved checkpoint at step 5000
+What is Gravity? It was crucial to do this is to the way of his own unique. This method to a small town are you might think of this amazing of the
+Epoch: 0, Step: 5001, Batch(micro): 5001, Batch (considering grad accum): 625,  Loss: 5.8871, Time: 13.91s, Token/s: 36.81
+Epoch: 0, Step: 5002, Batch(micro): 5002, Batch (considering grad accum): 625,  Loss: 6.7426, Time: 3.69s, Token/s: 138.78
+Epoch: 0, Step: 5003, Batch(micro): 5003, Batch (considering grad accum): 625,  Loss: 6.7222, Time: 3.38s, Token/s: 151.29
+::
+::
+Epoch: 0, Step: 9996, Batch(micro): 9996, Batch (considering grad accum): 1249,  Loss: 5.6372, Time: 3.30s, Token/s: 155.23
+Epoch: 0, Step: 9997, Batch(micro): 9997, Batch (considering grad accum): 1249,  Loss: 5.7401, Time: 3.38s, Token/s: 151.69
+Epoch: 0, Step: 9998, Batch(micro): 9998, Batch (considering grad accum): 1249,  Loss: 5.5218, Time: 3.51s, Token/s: 146.05
+Epoch: 0, Step: 9999, Batch(micro): 9999, Batch (considering grad accum): 1249,  Loss: 5.7883, Time: 22.42s, Token/s: 22.83
+Updating MLP bias
+Epoch: 0, Step: 10000, Batch(micro): 10000, Batch (considering grad accum): 1250,  Loss: 6.9143, Time: 28.94s, Token/s: 17.69
+Saved checkpoint at step 10000
+What is Gravity? Or how they could be better understand what makes each other cultures and explore key concepts and how the game to the way, I think about the following this
+Saved final checkpoint
+What is Gravity? This is a time, or other animals. She spoke up, which allows us that your own unique style. This chapter, we call these ideas without
+Saved the trained model
+Training complete!
+
 
 ```
 

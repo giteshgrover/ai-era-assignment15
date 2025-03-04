@@ -51,7 +51,7 @@ class MultiHeadLatentAttention(nn.Module):
 
         self.scale = 1.0 / math.sqrt(self.head_dim)
         
-        # self.o_proj.NANGPT_SCALE_INIT = 1 TODO do we need weight initialization scaling?
+        self.o_proj.NANGPT_SCALE_INIT = 1 # TODO do we need weight initialization scaling?
         self.register_buffer("rotatory_embed_cached", None, persistent=False)
 
     def forward(self, x, attention_mask=None):
@@ -139,7 +139,7 @@ class DeepSeekExpert(nn.Module):
         self.gate = nn.Linear(dim, intermediate_dim, bias=False)
         self.up = nn.Linear(dim, intermediate_dim, bias=False)
         self.down = nn.Linear(intermediate_dim, dim, bias=False)
-        # self.down.NANGPT_SCALE_INIT = 1 # TODO do we need weight initialization scaling - Optimization ?
+        self.down.NANGPT_SCALE_INIT = 1 # TODO do we need weight initialization scaling - Optimization ?
         self.act_fn = nn.SiLU() # SwiGLU activation function
 
     def forward(self, x):
@@ -253,6 +253,11 @@ class DeepSeekBlock(nn.Module):
         # Feedforward
         self.ffn = DeepSeekFFN(config)
 
+         # Add layer scale parameters
+        # self.attention_scale = nn.Parameter(torch.ones(1) * 0.1)
+        # self.ffn_scale = nn.Parameter(torch.ones(1) * 0.1)
+     
+
     def forward(self, x, attention_mask=None, update_mlp_bias=False):
         # x: [batch_size, seq_len, nn_embed]
         # attention_mask: [batch_size, seq_len]
@@ -262,6 +267,11 @@ class DeepSeekBlock(nn.Module):
 
         # Feedforward
         x = x + self.ffn(self.ffn_norm(x), update_mlp_bias)
+
+        # Scale the residual connections
+        # x = x + self.attention_scale * self.attn(self.attn_norm(x), attention_mask)
+        # x = x + self.ffn_scale * self.ffn(self.ffn_norm(x), update_mlp_bias)
+        
 
         return x
 
@@ -291,7 +301,7 @@ class DeepSeekTransfomerModel(nn.Module):
         # initialize weights
         self.apply(self._init_weights)
 
-    def forward(self, input_ids: torch.Tensor, mask: Optional[torch.Tensor] = None, targets: Optional[torch.Tensor] = None, update_mlp_bias=False, use_cache: bool = False):
+    def forward(self, input_ids: torch.Tensor, mask: Optional[torch.Tensor] = None, targets: Optional[torch.Tensor] = None, update_mlp_bias=False, use_cache: bool = False, return_flatten_logits: bool = True):
         # TODO Should the mask be created for inference? if yes, would it be same?
         if (mask is None):
             mask = self.create_causal_mask(input_ids.shape[1], device=input_ids.device)
@@ -304,12 +314,18 @@ class DeepSeekTransfomerModel(nn.Module):
         
         # [batch_size, seq_len, nn_embed] -> [batch_size, seq_len, vocab_size]
         logits = self.head(self.norm(x))
+        # print(f"logits.shape: {logits.shape}")
 
-        if targets is not None: 
+        if targets is not None:
+            # print(f"targets.shape: {targets.shape}")
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1))
+            # print(f"logits.view(-1, logits.size(-1)).shape: {logits.view(-1, logits.size(-1)).shape} AND targets.view(-1).shape: {targets.view(-1).shape}")
             return logits, loss
         else:
-            return logits
+            if return_flatten_logits:
+                return logits.view(-1, logits.size(-1))
+            else:
+                return logits
 
     # Linear layers (attention projections, FFN layers, lm_head) are initialized from N(0, 0.02)
     # Embedding layer is initialized from N(0, 0.02)
@@ -318,7 +334,7 @@ class DeepSeekTransfomerModel(nn.Module):
         if isinstance(module, nn.Linear):
             std = self.std
             if hasattr(module, 'NANGPT_SCALE_INIT'):
-                std *= (2 * self.config.n_layer) ** -0.5
+                std *= (2 * self.config.num_hidden_layers) ** -0.5
             torch.nn.init.normal_(module.weight, mean = 0.0, std = std)
             if module.bias is not None:
                 torch.nn.init.zeros_(module.bias)
@@ -377,7 +393,7 @@ class DeepSeekTransfomerModel(nn.Module):
             #     next_mask = torch.ones((1, 1, 1, current_seq_len), device=input_ids.device)
 
             # Process including the new tokens
-            logits = self(input_ids[:, :current_seq_len], next_mask, use_cache=False)
+            logits = self(input_ids[:, :current_seq_len], next_mask, use_cache=False, return_flatten_logits=False)
             
             # Get the last token's logits
             next_token_logits = logits[:, -1, :] / temperature

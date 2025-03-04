@@ -26,7 +26,8 @@ class Config:
     micro_batch_size: int = 8
     intended_batch_size: int = 64  # 8
     train_steps: int = 2000000 # SmolLM2-135M steps. We are not using it
-    optimizer_learning_rate_scheduler_learning_rate: float = 0.003
+    optimizer_learning_rate_scheduler_learning_rate: float = .0002 # 0.003
+    optimizer_weight_decay: float = 0.1 # 0.01
     optimizer_learning_rate_scheduler_lr_decay_starting_step: int = 1600000
     optimizer_learning_rate_scheduler_lr_decay_steps: int = 400000
     optimizer_learning_rate_scheduler_lr_decay_style: str = "linear"
@@ -38,7 +39,6 @@ class Config:
     optimizer_factory_adam_eps: float = 1.0e-08
     optimizer_factory_name: str = "adamW"
     optimizer_factory_torch_adam_is_fused: bool = True
-    optimizer_weight_decay: float = 0.01
     optimizer_zero_stage: int = 0
     optimizer_clip_grad: float = 1.0
  

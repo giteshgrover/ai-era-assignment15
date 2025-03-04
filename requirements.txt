@@ -7,3 +7,4 @@ huggingface-hub>=0.16.0
 tokenizers>=0.13.0
 gradio>=4.0.0
 torchinfo
+torch-lr-finder
